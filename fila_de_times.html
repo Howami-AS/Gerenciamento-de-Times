@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fila de Times</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        sport: {
+                            50: '#f0fdf4',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            900: '#14532d'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400,500,600,700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.4); border-radius: 3px; }
+    </style>
+    <!-- Embedded PWA Manifest via Data URI -->
+    <link rel="manifest" href="data:application/manifest+json;base64,ewogICJuYW1lIjogIkZpbGEgZGUgVGltZXMiLAogICJzaG9ydF9uYW1lIjogIkZpbGFUaW1lcyIsCiAgInN0YXJ0X3VybCI6ICIvIiwKICAiZGlzcGxheSI6ICJzdGFuZGFsb25lIiwKICAiYmFja2dyb3VuZF9jb2xvciI6ICIjMGYxNzJhIiwKICAidGhlbWVfY29sb3IiOiAiIzIyYzU1ZSIsCiAgImljb25zIjogW10KfQ==">
+</head>
+<body class="bg-slate-900 text-slate-100 h-full flex flex-col selection:bg-emerald-500 selection:text-white">
+
+    <header class="bg-slate-800/90 backdrop-blur border-b border-slate-700/80 sticky top-0 z-30 px-4 py-3 flex items-center justify-between shadow-md">
+        <div class="flex items-center space-x-2.5">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <i class="fa-solid fa-volleyball text-white text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">🏐 FILA DE TIMES</h1>
+                <p class="text-xs text-slate-400">Gerenciamento de Times</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2">
+            <button id="installBtn" class="hidden bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-2 rounded-xl transition shadow-sm flex items-center space-x-1.5">
+                <i class="fa-solid fa-download"></i>
+                <span class="hidden sm:inline">Instalar PWA</span>
+            </button>
+            <button onclick="UI.toggleDarkMode()" class="w-9 h-9 rounded-xl bg-slate-700/50 hover:bg-slate-700 flex items-center justify-center text-slate-300 transition">
+                <i id="themeIcon" class="fa-solid fa-moon"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto p-4 max-w-4xl w-full mx-auto space-y-6 pb-20">
+
+        <!-- Setup State Banner (Visible if < 3 teams) -->
+        <div id="setupBanner" class="bg-gradient-to-r from-emerald-950/60 to-slate-900 border border-emerald-500/30 rounded-2xl p-6 text-center space-y-4 shadow-xl">
+            <div class="w-14 h-14 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto text-2xl border border-emerald-500/30">
+                <i class="fa-solid fa-users-gear"></i>
+            </div>
+            <div class="space-y-1">
+                <h2 class="text-xl font-bold text-emerald-200">+ NOVO JOGO / CONFIGURAR TIMES</h2>
+                <p class="text-sm text-slate-300 max-w-md mx-auto">Cadastre pelo menos 3 times para iniciar a rotação automática e justa das partidas recreativas.</p>
+            </div>
+            <div class="flex flex-wrap justify-center gap-3 pt-2">
+                <button onclick="UI.openTeamsModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-3 rounded-xl shadow-lg shadow-emerald-600/30 transition flex items-center space-x-2">
+                    <i class="fa-solid fa-plus-circle"></i>
+                    <span>Adicionar / Gerenciar Times</span>
+                </button>
+                <button onclick="Rotation.addBatchTeams(5)" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold px-5 py-3 rounded-xl transition text-sm">
+                    Carregar 5 Times Padrão (A-E)
+                </button>
+            </div>
+        </div>
+
+        <!-- Active Match & Controls Section -->
+        <div id="matchSection" class="space-y-4">
+            
+            <!-- Round & Status Header -->
+            <div class="flex items-center justify-between bg-slate-800/80 border border-slate-700/80 px-4 py-3 rounded-2xl shadow-sm">
+                <div class="flex items-center space-x-3">
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1.5"></span>
+                        🟢 EM QUADRA
+                    </span>
+                    <span id="matchCounter" class="text-sm font-extrabold text-slate-200">Partida #1</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="Rotation.undoLast()" id="undoBtn" class="bg-slate-700/80 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center space-x-1.5 disabled:opacity-40 disabled:cursor-not-allowed border border-slate-600/50" disabled>
+                        <i class="fa-solid fa-rotate-left"></i>
+                        <span>↩️ Desfazer</span>
+                    </button>
+                    <button onclick="UI.confirmRestart()" class="bg-slate-700/80 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center space-x-1.5 border border-slate-600/50">
+                        <i class="fa-solid fa-arrow-rotate-right"></i>
+                        <span>🔄 Reiniciar</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Court Match Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                <!-- Team A Card -->
+                <div class="bg-slate-800 border-2 border-slate-700 hover:border-emerald-500/50 rounded-2xl p-5 shadow-xl transition relative overflow-hidden flex flex-col justify-between">
+                    <div class="absolute top-0 right-0 bg-emerald-600/20 text-emerald-400 text-xs font-bold px-3 py-1 rounded-bl-xl border-l border-b border-emerald-500/30">
+                        TIME A
+                    </div>
+                    <div>
+                        <div class="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-1">Competidor 1</div>
+                        <h3 id="courtTeamAName" class="text-2xl sm:text-3xl font-extrabold text-white truncate pr-16">—</h3>
+                        <div class="mt-3 flex items-center space-x-2">
+                            <span class="text-xs text-slate-400 font-medium">Vitórias Consecutivas:</span>
+                            <span id="courtTeamAWins" class="px-2.5 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-full text-xs font-bold">0</span>
+                        </div>
+                    </div>
+                    <div class="mt-6">
+                        <button onclick="Rotation.registrarVitoria('A')" class="w-full bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 active:scale-[0.98] text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-emerald-900/40 transition flex items-center justify-center space-x-2 text-base border border-emerald-400/20">
+                            <i class="fa-solid fa-trophy text-amber-300"></i>
+                            <span id="winButtonAText">🏆 TIME A VENCEU</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Team B Card -->
+                <div class="bg-slate-800 border-2 border-slate-700 hover:border-emerald-500/50 rounded-2xl p-5 shadow-xl transition relative overflow-hidden flex flex-col justify-between">
+                    <div class="absolute top-0 right-0 bg-teal-600/20 text-teal-400 text-xs font-bold px-3 py-1 rounded-bl-xl border-l border-b border-teal-500/30">
+                        TIME B
+                    </div>
+                    <div>
+                        <div class="text-xs uppercase tracking-wider text-slate-400 font-semibold mb-1">Competidor 2</div>
+                        <h3 id="courtTeamBName" class="text-2xl sm:text-3xl font-extrabold text-white truncate pr-16">—</h3>
+                        <div class="mt-3 flex items-center space-x-2">
+                            <span class="text-xs text-slate-400 font-medium">Vitórias Consecutivas:</span>
+                            <span id="courtTeamBWins" class="px-2.5 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-full text-xs font-bold">0</span>
+                        </div>
+                    </div>
+                    <div class="mt-6">
+                        <button onclick="Rotation.registrarVitoria('B')" class="w-full bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 active:scale-[0.98] text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-teal-900/40 transition flex items-center justify-center space-x-2 text-base border border-teal-400/20">
+                            <i class="fa-solid fa-trophy text-amber-300"></i>
+                            <span id="winButtonBText">🏆 TIME B VENCEU</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Action Bar -->
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+                <button onclick="UI.openTeamsModal()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold px-4 py-2.5 rounded-xl text-sm transition flex items-center space-x-2 shadow-sm">
+                    <i class="fa-solid fa-users-gear text-emerald-400"></i>
+                    <span>⚙️ Editar Fila / Gerenciar Times</span>
+                </button>
+                <button onclick="UI.openAddModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition flex items-center space-x-2 shadow-md shadow-emerald-600/20">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>+ Adicionar Time</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Queue & History Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Queue Section (Spans 2 cols) -->
+            <div class="md:col-span-2 bg-slate-800/70 border border-slate-700/70 rounded-2xl p-5 shadow-lg flex flex-col">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-list-ol text-amber-400"></i>
+                        <h3 class="font-bold text-slate-200 text-base">🟡 PRÓXIMOS DA FILA</h3>
+                    </div>
+                    <span id="queueCountBadge" class="bg-slate-700 text-slate-300 text-xs px-2.5 py-0.5 rounded-full font-semibold">0 times</span>
+                </div>
+                <div id="queueListContainer" class="space-y-2 max-h-72 overflow-y-auto pr-1">
+                    <div class="text-center py-8 text-slate-500 text-sm">Nenhum time na fila de espera.</div>
+                </div>
+            </div>
+
+            <!-- History Section (Spans 1 col) -->
+            <div class="bg-slate-800/70 border border-slate-700/70 rounded-2xl p-5 shadow-lg flex flex-col">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-clock-rotate-left text-teal-400"></i>
+                        <h3 class="font-bold text-slate-200 text-base">HISTÓRICO</h3>
+                    </div>
+                    <span class="text-xs text-slate-400">Recentes</span>
+                </div>
+                <div id="historyListContainer" class="space-y-2 max-h-72 overflow-y-auto pr-1">
+                    <div class="text-center py-8 text-slate-500 text-sm">Nenhuma partida registrada.</div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="mt-auto py-4 text-center text-xs text-slate-500 border-t border-slate-800 bg-slate-900/90">
+        ©️️ Alisson Salvador 2026
+    </footer>
+
+    <!-- MODAL: Teams Management & Queue Editor -->
+    <div id="teamsModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-700">
+                <h3 class="text-lg font-bold text-white flex items-center space-x-2">
+                    <i class="fa-solid fa-users text-emerald-400"></i>
+                    <span>Gerenciar Times e Fila</span>
+                </h3>
+                <button onclick="UI.closeTeamsModal()" class="w-8 h-8 rounded-xl bg-slate-700/50 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Add Single Team Form -->
+            <form onsubmit="UI.handleAddTeamSubmit(event)" class="flex space-x-2">
+                <input type="text" id="newTeamInput" placeholder="Nome do time (ex: Time F)..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-emerald-500 transition" required>
+                <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition shadow-md">
+                    + Adicionar
+                </button>
+            </form>
+
+            <!-- Quick Batch Add Presets -->
+            <div class="space-y-2">
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Adicionar em Lote Rápido</label>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <button onclick="Rotation.addBatchTeams(4); UI.renderModalTeamsList();" class="bg-slate-700/50 hover:bg-slate-700 text-slate-300 text-xs font-semibold py-2 px-3 rounded-xl border border-slate-600/50 transition">4 Times</button>
+                    <button onclick="Rotation.addBatchTeams(6); UI.renderModalTeamsList();" class="bg-slate-700/50 hover:bg-slate-700 text-slate-300 text-xs font-semibold py-2 px-3 rounded-xl border border-slate-600/50 transition">6 Times</button>
+                    <button onclick="Rotation.addBatchTeams(8); UI.renderModalTeamsList();" class="bg-slate-700/50 hover:bg-slate-700 text-slate-300 text-xs font-semibold py-2 px-3 rounded-xl border border-slate-600/50 transition">8 Times</button>
+                    <button onclick="Rotation.addBatchTeams(10); UI.renderModalTeamsList();" class="bg-slate-700/50 hover:bg-slate-700 text-slate-300 text-xs font-semibold py-2 px-3 rounded-xl border border-slate-600/50 transition">10 Times</button>
+                </div>
+            </div>
+
+            <!-- Teams Editable List -->
+            <div class="flex-1 overflow-y-auto space-y-2 pr-1">
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Times Cadastrados (<span id="modalTeamCount">0</span>)</label>
+                <div id="modalTeamsList" class="space-y-2">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-700 flex justify-end">
+                <button onclick="UI.closeTeamsModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition shadow-lg shadow-emerald-600/20">
+                    Concluir / Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Custom Prompt / Confirmation Dialog -->
+    <div id="customModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 text-center">
+            <div id="customModalIcon" class="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto text-xl">
+                <i class="fa-solid fa-circle-info"></i>
+            </div>
+            <h4 id="customModalTitle" class="text-lg font-bold text-white">Título</h4>
+            <p id="customModalText" class="text-sm text-slate-300">Mensagem do modal.</p>
+            <div id="customModalButtons" class="flex space-x-3 pt-2">
+                <button id="customModalCancel" onclick="UI.closeCustomModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold py-2.5 rounded-xl text-sm transition">Cancelar</button>
+                <button id="customModalConfirm" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-xl text-sm transition">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. STORAGE MODULE (storage.js)
+        // ==========================================
+        const StorageModule = {
+            STORAGE_KEY: 'fila_de_times_state_v2',
+            save(stateData) {
+                try {
+                    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(stateData));
+                } catch (e) {
+                    console.error('Failed to save state:', e);
+                }
+            },
+            load() {
+                try {
+                    const data = localStorage.getItem(this.STORAGE_KEY);
+                    return data ? JSON.parse(data) : null;
+                } catch (e) {
+                    console.error('Failed to load state:', e);
+                    return null;
+                }
+            },
+            clear() {
+                localStorage.removeItem(this.STORAGE_KEY);
+            }
+        };
+
+        // ==========================================
+        // 2. ROTATION & CORE LOGIC MODULE (rotation.js)
+        // ==========================================
+        const Rotation = {
+            state: {
+                teams: [],       // { id, name }
+                court: { teamAId: null, teamBId: null, teamAWins: 0, teamBWins: 0 },
+                queue: [],       // Array of team IDs
+                history: [],     // Array of match objects
+                matchCount: 1,
+                historyStack: [] // Snapshot stack for undo
+            },
+
+            init() {
+                const saved = StorageModule.load();
+                if (saved) {
+                    this.state = saved;
+                } else {
+                    // Default startup with 5 teams: A, B, C, D, E
+                    const defaultTeams = [
+                        { id: 't_a', name: 'Time A' },
+                        { id: 't_b', name: 'Time B' },
+                        { id: 't_c', name: 'Time C' },
+                        { id: 't_d', name: 'Time D' },
+                        { id: 't_e', name: 'Time E' }
+                    ];
+                    this.state.teams = defaultTeams;
+                    this.state.court = {
+                        teamAId: defaultTeams[0].id,
+                        teamBId: defaultTeams[1].id,
+                        teamAWins: 0,
+                        teamBWins: 0
+                    };
+                    this.state.queue = [defaultTeams[2].id, defaultTeams[3].id, defaultTeams[4].id];
+                    this.state.matchCount = 1;
+                    this.state.history = [];
+                    this.state.historyStack = [];
+                    this.save(true);
+                }
+                UI.render();
+            },
+
+            save(pushHistory = false) {
+                if (pushHistory) {
+                    const snapshot = JSON.stringify({
+                        teams: this.state.teams,
+                        court: this.state.court,
+                        queue: this.state.queue,
+                        history: this.state.history,
+                        matchCount: this.state.matchCount
+                    });
+                    this.state.historyStack.push(snapshot);
+                    if (this.state.historyStack.length > 25) this.state.historyStack.shift();
+                }
+                StorageModule.save(this.state);
+                UI.render();
+            },
+
+            undoLast() {
+                if (this.state.historyStack.length === 0) return;
+                const prevJSON = this.state.historyStack.pop();
+                const prev = JSON.parse(prevJSON);
+                this.state.teams = prev.teams;
+                this.state.court = prev.court;
+                this.state.queue = prev.queue;
+                this.state.history = prev.history;
+                this.state.matchCount = prev.matchCount;
+                StorageModule.save(this.state);
+                UI.render();
+            },
+
+            restartRotation() {
+                StorageModule.clear();
+                this.init();
+            },
+
+            addTeam(name) {
+                if (!name || !name.trim()) return;
+                const trimmed = name.trim();
+                if (this.state.teams.some(t => t.name.toLowerCase() === trimmed.toLowerCase())) return;
+
+                const newId = 't_' + Math.random().toString(36).substr(2, 9);
+                this.state.teams.push({ id: newId, name: trimmed });
+
+                // If court is empty or rotation hasn't started fully
+                if (!this.state.court.teamAId) {
+                    this.state.court.teamAId = newId;
+                } else if (!this.state.court.teamBId) {
+                    this.state.court.teamBId = newId;
+                } else {
+                    this.state.queue.push(newId);
+                }
+                this.save(true);
+            },
+
+            addBatchTeams(count) {
+                const existingCount = this.state.teams.length;
+                const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+                for (let i = 0; i < count; i++) {
+                    const letterIndex = (existingCount + i) % letters.length;
+                    const suffix = Math.floor((existingCount + i) / letters.length);
+                    const name = `Time ${letters[letterIndex]}${suffix > 0 ? suffix + 1 : ''}`;
+                    if (!this.state.teams.some(t => t.name.toLowerCase() === name.toLowerCase())) {
+                        const newId = 't_' + Math.random().toString(36).substr(2, 9);
+                        this.state.teams.push({ id: newId, name });
+                        if (!this.state.court.teamAId) this.state.court.teamAId = newId;
+                        else if (!this.state.court.teamBId) this.state.court.teamBId = newId;
+                        else this.state.queue.push(newId);
+                    }
+                }
+                this.save(true);
+            },
+
+            removeTeam(teamId) {
+                if (this.state.teams.length <= 3) {
+                    UI.showCustomModal('Aviso', 'É necessário manter pelo menos 3 times cadastrados na rotação.', '<i class="fa-solid fa-triangle-exclamation"></i>', null, true);
+                    return;
+                }
+
+                if (this.state.court.teamAId === teamId || this.state.court.teamBId === teamId) {
+                    UI.showCustomModal(
+                        'Remover Time em Quadra',
+                        'Este time está jogando atualmente. Deseja removê-lo? Um substituto entrará imediatamente.',
+                        '<i class="fa-solid fa-user-minus"></i>',
+                        () => {
+                            this.executeTeamRemoval(teamId);
+                            UI.closeCustomModal();
+                        }
+                    );
+                    return;
+                }
+
+                this.executeTeamRemoval(teamId);
+            },
+
+            executeTeamRemoval(teamId) {
+                this.state.teams = this.state.teams.filter(t => t.id !== teamId);
+                this.state.queue = this.state.queue.filter(id => id !== teamId);
+
+                if (this.state.court.teamAId === teamId) {
+                    this.state.court.teamAId = this.state.queue.length > 0 ? this.state.queue.shift() : null;
+                    this.state.court.teamAWins = 0;
+                }
+                if (this.state.court.teamBId === teamId) {
+                    this.state.court.teamBId = this.state.queue.length > 0 ? this.state.queue.shift() : null;
+                    this.state.court.teamBWins = 0;
+                }
+
+                // Fill court if empty and available
+                if ((!this.state.court.teamAId || !this.state.court.teamBId) && this.state.teams.length >= 2) {
+                    const activeIds = [this.state.court.teamAId, this.state.court.teamBId].filter(Boolean);
+                    const available = this.state.teams.filter(t => !activeIds.includes(t.id));
+                    if (!this.state.court.teamAId && available.length > 0) this.state.court.teamAId = available.shift().id;
+                    if (!this.state.court.teamBId && available.length > 0) this.state.court.teamBId = available.shift().id;
+                }
+
+                this.save(true);
+                UI.renderModalTeamsList();
+            },
+
+            updateTeamName(teamId, newName) {
+                if (!newName || !newName.trim()) return;
+                const team = this.state.teams.find(t => t.id === teamId);
+                if (team) {
+                    team.name = newName.trim();
+                    this.save(false);
+                }
+            },
+
+            moveQueueItem(index, direction) {
+                const newIndex = index + direction;
+                if (newIndex < 0 || newIndex >= this.state.queue.length) return;
+                const temp = this.state.queue[index];
+                this.state.queue[index] = this.state.queue[newIndex];
+                this.state.queue[newIndex] = temp;
+                this.save(true);
+                UI.renderModalTeamsList();
+            },
+
+            // 30. REGRA MAIS IMPORTANTE E ALGORITMO CENTRAL (Rule 3, 4, 5, 6, 7, 26)
+            registrarVitoria(winnerSide) {
+                if (!this.state.court.teamAId || !this.state.court.teamBId) return;
+
+                const teamA = this.state.teams.find(t => t.id === this.state.court.teamAId);
+                const teamB = this.state.teams.find(t => t.id === this.state.court.teamBId);
+                if (!teamA || !teamB) return;
+
+                const winnerId = winnerSide === 'A' ? teamA.id : teamB.id;
+                const loserId = winnerSide === 'A' ? teamB.id : teamA.id;
+                const winnerName = winnerSide === 'A' ? teamA.name : teamB.name;
+                const loserName = winnerSide === 'A' ? teamB.name : teamA.name;
+
+                // Save snapshot for Undo before mutation
+                this.save(true);
+
+                // Increment winner consecutive wins, reset loser
+                if (winnerSide === 'A') {
+                    this.state.court.teamAWins += 1;
+                    this.state.court.teamBWins = 0;
+                } else {
+                    this.state.court.teamBWins += 1;
+                    this.state.court.teamAWins = 0;
+                }
+
+                const currentWinnerWins = winnerSide === 'A' ? this.state.court.teamAWins : this.state.court.teamBWins;
+
+                // Record history entry
+                this.state.history.unshift({
+                    matchNum: this.state.matchCount,
+                    winner: winnerName,
+                    loser: loserName,
+                    text: `${winnerName} venceu ${loserName}`
+                });
+                this.state.matchCount += 1;
+
+                // RULE 4 & 26: 2 consecutive wins check
+                if (currentWinnerWins >= 2) {
+                    // Winner and loser both leave court.
+                    // Reset winner streak.
+                    if (winnerSide === 'A') this.state.court.teamAWins = 0;
+                    else this.state.court.teamBWins = 0;
+
+                    // Both go to the end of the queue (loser first, then winner)
+                    this.state.queue.push(loserId);
+                    this.state.queue.push(winnerId);
+
+                    // Pull next 2 teams from queue
+                    if (this.state.queue.length >= 2) {
+                        this.state.court.teamAId = this.state.queue.shift();
+                        this.state.court.teamBId = this.state.queue.shift();
+                    } else if (this.state.queue.length === 1) {
+                        this.state.court.teamAId = this.state.queue.shift();
+                        this.state.court.teamBId = this.state.teams.find(t => t.id !== this.state.court.teamAId)?.id || null;
+                    }
+                } else {
+                    // RULE 3 & 26: Winner stays, loser goes to the end of queue, next from queue enters
+                    this.state.queue.push(loserId);
+
+                    if (this.state.queue.length > 0) {
+                        const nextTeamId = this.state.queue.shift();
+                        if (winnerSide === 'A') {
+                            this.state.court.teamBId = nextTeamId;
+                        } else {
+                            this.state.court.teamAId = nextTeamId;
+                        }
+                    }
+                }
+
+                StorageModule.save(this.state);
+                UI.render();
+            }
+        };
+
+        // ==========================================
+        // 3. UI RENDERING & INTERACTION MODULE (ui.js)
+        // ==========================================
+        const UI = {
+            render() {
+                const state = Rotation.state;
+                const setupBanner = document.getElementById('setupBanner');
+                const matchSection = document.getElementById('matchSection');
+
+                if (state.teams.length < 3) {
+                    setupBanner.classList.remove('hidden');
+                    matchSection.classList.add('opacity-50', 'pointer-events-none');
+                } else {
+                    setupBanner.classList.add('hidden');
+                    matchSection.classList.remove('opacity-50', 'pointer-events-none');
+                }
+
+                // Match Counter
+                document.getElementById('matchCounter').innerText = `Partida #${state.matchCount}`;
+
+                // Undo Button State
+                document.getElementById('undoBtn').disabled = state.historyStack.length === 0;
+
+                // Court Teams & Wins
+                const teamA = state.teams.find(t => t.id === state.court.teamAId);
+                const teamB = state.teams.find(t => t.id === state.court.teamBId);
+
+                document.getElementById('courtTeamAName').innerText = teamA ? teamA.name : 'Aguardando...';
+                document.getElementById('courtTeamAWins').innerText = state.court.teamAWins;
+                document.getElementById('winButtonAText').innerText = teamA ? `🏆 ${teamA.name.toUpperCase()} VENCEU` : '🏆 TIME A VENCEU';
+
+                document.getElementById('courtTeamBName').innerText = teamB ? teamB.name : 'Aguardando...';
+                document.getElementById('courtTeamBWins').innerText = state.court.teamBWins;
+                document.getElementById('winButtonBText').innerText = teamB ? `🏆 ${teamB.name.toUpperCase()} VENCEU` : '🏆 TIME B VENCEU';
+
+                // Queue List
+                const queueContainer = document.getElementById('queueListContainer');
+                document.getElementById('queueCountBadge').innerText = `${state.queue.length} ${state.queue.length === 1 ? 'time' : 'times'}`;
+
+                if (state.queue.length === 0) {
+                    queueContainer.innerHTML = `<div class="text-center py-6 text-slate-500 text-sm bg-slate-900/40 rounded-xl border border-slate-700/40">Nenhum time na fila de espera.</div>`;
+                } else {
+                    let html = '';
+                    state.queue.forEach((id, index) => {
+                        const t = state.teams.find(item => item.id === id);
+                        if (!t) return;
+                        html += `
+                            <div class="flex items-center justify-between bg-slate-900/50 border border-slate-700/50 px-4 py-3 rounded-xl hover:border-slate-600 transition">
+                                <div class="flex items-center space-x-3">
+                                    <span class="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 font-bold text-xs flex items-center justify-center border border-amber-500/30">${index + 1}º</span>
+                                    <span class="font-bold text-slate-200 text-sm">${t.name}</span>
+                                </div>
+                                <div class="flex items-center space-x-1">
+                                    <button onclick="Rotation.moveQueueItem(${index}, -1)" ${index === 0 ? 'disabled' : ''} class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-xs transition">
+                                        <i class="fa-solid fa-arrow-up"></i>
+                                    </button>
+                                    <button onclick="Rotation.moveQueueItem(${index}, 1)" ${index === state.queue.length - 1 ? 'disabled' : ''} class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-xs transition">
+                                        <i class="fa-solid fa-arrow-down"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    queueContainer.innerHTML = html;
+                }
+
+                // History List
+                const historyContainer = document.getElementById('historyListContainer');
+                if (state.history.length === 0) {
+                    historyContainer.innerHTML = `<div class="text-center py-6 text-slate-500 text-sm bg-slate-900/40 rounded-xl border border-slate-700/40">Nenhuma partida registrada.</div>`;
+                } else {
+                    let hHtml = '';
+                    state.history.slice(0, 10).forEach(item => {
+                        hHtml += `
+                            <div class="bg-slate-900/50 border border-slate-700/50 px-3 py-2.5 rounded-xl text-xs space-y-1">
+                                <div class="flex justify-between text-slate-400 font-semibold">
+                                    <span>Partida #${item.matchNum}</span>
+                                    <span class="text-emerald-400"><i class="fa-solid fa-trophy text-[10px] mr-1"></i>Vitória</span>
+                                </div>
+                                <div class="font-bold text-slate-200">${item.text}</div>
+                            </div>
+                        `;
+                    });
+                    historyContainer.innerHTML = hHtml;
+                }
+            },
+
+            openTeamsModal() {
+                this.renderModalTeamsList();
+                document.getElementById('teamsModal').classList.remove('hidden');
+                document.getElementById('teamsModal').classList.add('flex');
+            },
+
+            closeTeamsModal() {
+                document.getElementById('teamsModal').classList.add('hidden');
+                document.getElementById('teamsModal').classList.remove('flex');
+                this.render();
+            },
+
+            openAddModal() {
+                this.openTeamsModal();
+                document.getElementById('newTeamInput').focus();
+            },
+
+            renderModalTeamsList() {
+                const state = Rotation.state;
+                document.getElementById('modalTeamCount').innerText = state.teams.length;
+                const container = document.getElementById('modalTeamsList');
+                let html = '';
+                state.teams.forEach(t => {
+                    const inCourt = state.court.teamAId === t.id || state.court.teamBId === t.id;
+                    const inQueue = state.queue.includes(t.id);
+                    const statusBadge = inCourt ? '<span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">🟢 Em Quadra</span>' : (inQueue ? '<span class="px-2 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">🟡 Na Fila</span>' : '');
+
+                    html += `
+                        <div class="flex items-center justify-between bg-slate-900/60 border border-slate-700/60 px-3 py-2.5 rounded-xl">
+                            <div class="flex items-center space-x-2 flex-1 mr-2">
+                                <input type="text" value="${t.name}" onchange="Rotation.updateTeamName('${t.id}', this.value)" class="bg-slate-800 border border-slate-700 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg w-full focus:outline-none focus:border-emerald-500">
+                                ${statusBadge}
+                            </div>
+                            <button onclick="Rotation.removeTeam('${t.id}'); UI.renderModalTeamsList();" class="w-8 h-8 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 flex items-center justify-center text-xs transition">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            },
+
+            handleAddTeamSubmit(e) {
+                e.preventDefault();
+                const input = document.getElementById('newTeamInput');
+                Rotation.addTeam(input.value);
+                input.value = '';
+                this.renderModalTeamsList();
+            },
+
+            confirmRestart() {
+                this.showCustomModal(
+                    '🔄 Reiniciar Rotação',
+                    'Tem certeza que deseja reiniciar a rotação? O histórico e as vitórias consecutivas serão zerados.',
+                    '<i class="fa-solid fa-triangle-exclamation"></i>',
+                    () => {
+                        Rotation.restartRotation();
+                        this.closeCustomModal();
+                    }
+                );
+            },
+
+            showCustomModal(title, text, iconHtml, onConfirm, hideCancel = false) {
+                document.getElementById('customModalTitle').innerText = title;
+                document.getElementById('customModalText').innerText = text;
+                document.getElementById('customModalIcon').innerHTML = iconHtml;
+                const confirmBtn = document.getElementById('customModalConfirm');
+                const cancelBtn = document.getElementById('customModalCancel');
+
+                if (hideCancel) {
+                    cancelBtn.classList.add('hidden');
+                } else {
+                    cancelBtn.classList.remove('hidden');
+                }
+
+                confirmBtn.onclick = () => {
+                    if (onConfirm) onConfirm();
+                    this.closeCustomModal();
+                };
+
+                document.getElementById('customModal').classList.remove('hidden');
+                document.getElementById('customModal').classList.add('flex');
+            },
+
+            closeCustomModal() {
+                document.getElementById('customModal').classList.add('hidden');
+                document.getElementById('customModal').classList.remove('flex');
+            },
+
+            toggleDarkMode() {
+                document.documentElement.classList.toggle('dark');
+                const icon = document.getElementById('themeIcon');
+                icon.className = document.documentElement.classList.contains('dark') ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+            }
+        };
+
+        // ==========================================
+        // 4. PWA INSTALL & SERVICE WORKER SETUP
+        // ==========================================
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            const installBtn = document.getElementById('installBtn');
+            installBtn.classList.remove('hidden');
+            installBtn.onclick = () => {
+                installBtn.classList.add('hidden');
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+            };
+        });
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                const swCode = `
+                    self.addEventListener('install', (e) => { e.waitUntil(self.skipWaiting()); });
+                    self.addEventListener('activate', (e) => { e.waitUntil(self.clients.claim()); });
+                    self.addEventListener('fetch', (e) => { e.respondWith(fetch(e.request).catch(() => caches.match(e.request))); });
+                `;
+                const blob = new Blob([swCode], { type: 'text/javascript' });
+                const swUrl = URL.createObjectURL(blob);
+                navigator.serviceWorker.register(swUrl).catch(err => console.log('SW failed:', err));
+            });
+        }
+
+        // Initialize application on window load
+        window.onload = function() {
+            Rotation.init();
+        };
+    </script>
+</body>
+</html>
